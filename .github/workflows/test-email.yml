@@ -1,0 +1,58 @@
+name: Gmail Test Email
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: horizon-gmail-test
+  cancel-in-progress: false
+
+jobs:
+  test-email:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GMAIL_ADDRESS: ${{ vars.GMAIL_ADDRESS || secrets.GMAIL_ADDRESS }}
+      GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.11.26'
+      - run: uv sync --frozen
+      - name: Send one clearly labelled test email
+        run: |
+          uv run python - <<'PY'
+          import json, os
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+          from pathlib import Path
+          from src.models import EmailConfig
+          from src.services.email import EmailManager
+          from src.morning import valid_email
+          address = os.environ.get("GMAIL_ADDRESS", "").strip()
+          if not valid_email(address):
+              raise SystemExit("Missing or invalid GMAIL_ADDRESS")
+          if not os.environ.get("GMAIL_APP_PASSWORD", "").strip():
+              raise SystemExit("Missing GMAIL_APP_PASSWORD")
+          config = json.loads(Path("data/config.github.json").read_text())["email"]
+          config["email_address"] = address
+          now = datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y年%m月%d日 %H:%M:%S")
+          body = (
+              "# 这是一封测试邮件\n\n"
+              "你好！这封邮件由 GitHub Actions 云端运行的 Horizon 发送，用于验证 Gmail 发信配置。\n\n"
+              f"发送时间（北京时间）：{now}\n\n"
+              "正式早间甜点任务设定为北京时间每天 08:00 启动，整理此前 24 小时的 AI 资讯。\n\n"
+              "本邮件为连接测试，不包含正式新闻摘要。"
+          )
+          EmailManager(EmailConfig(**config)).send_daily_summary(
+              body, "【测试邮件】Horizon 早间甜点云端发信测试", [address], raise_on_error=True
+          )
+          print("TEST_EMAIL_ACCEPTED_BY_SMTP")
+          PY
