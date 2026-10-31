@@ -1,0 +1,89 @@
+name: Morning Sweet Treat
+
+on:
+  schedule:
+    # 00:00 UTC = 08:00 Asia/Shanghai on the same calendar date.
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Prevent scheduled and manually triggered runs from sending concurrently.
+concurrency:
+  group: horizon-morning-mail
+  cancel-in-progress: false
+
+jobs:
+  morning:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      TZ: Asia/Shanghai
+      PYTHONDONTWRITEBYTECODE: '1'
+      MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+      GMAIL_ADDRESS: ${{ vars.GMAIL_ADDRESS || secrets.GMAIL_ADDRESS }}
+      GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+      GITHUB_TOKEN: ${{ github.token }}
+      LWN_KEY: ${{ secrets.LWN_KEY }}
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.11.26'
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Resolve Beijing issue date
+        id: window
+        run: |
+          uv run python -c 'from src.morning import morning_window; print("issue_date=" + morning_window().metadata()["issue_date"])' >> "$GITHUB_OUTPUT"
+          uv run python -m src.morning --window-only
+
+      - name: Restore successful delivery receipt
+        id: receipt
+        uses: actions/cache/restore@v4
+        with:
+          path: data/morning/${{ steps.window.outputs.issue_date }}.sent.json
+          key: horizon-morning-sent-v1-${{ steps.window.outputs.issue_date }}
+
+      - name: Prepare private runtime configuration
+        if: steps.receipt.outputs.cache-hit != 'true'
+        run: |
+          cp data/config.github.json data/config.json
+          uv run python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from src.morning import valid_email
+          address = os.environ.get("GMAIL_ADDRESS", "").strip()
+          if not valid_email(address):
+              raise SystemExit("Set the repository variable GMAIL_ADDRESS to your Gmail address.")
+          Path("data/subscribers.json").write_text(json.dumps([address]), encoding="utf-8")
+          PY
+          uv run horizon --check-morning-config
+
+      - name: Generate and send morning email
+        id: delivery
+        if: steps.receipt.outputs.cache-hit != 'true'
+        env:
+          ISSUE_DATE: ${{ steps.window.outputs.issue_date }}
+        run: uv run horizon --morning --morning-date "$ISSUE_DATE"
+
+      - name: Save successful delivery receipt
+        if: success() && steps.delivery.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: data/morning/${{ steps.window.outputs.issue_date }}.sent.json
+          key: horizon-morning-sent-v1-${{ steps.window.outputs.issue_date }}
+
+      - name: Save digest for review
+        if: always() && steps.delivery.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: morning-${{ steps.window.outputs.issue_date }}
+          path: data/summaries/*-zh.md
+          retention-days: 14
