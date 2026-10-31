@@ -16,18 +16,26 @@
     "api_version": null
   },
   "processing": {
-    "profiles_dir": "profiles",
-    "default_profile": "tech-news",
+    "profiles_dir": "profiles/diy",
+    "default_profile": "diy-other",
     "profile_settings": {
-      "tech-news": {
+      "diy-capital-market": {
         "threshold": 7.0,
         "topic_dedup": true
       },
-      "tech-blog": {
-        "threshold": 4.0,
-        "topic_dedup": false
+      "diy-application": {
+        "threshold": 7.0,
+        "topic_dedup": true
       },
-      "finance-news": {
+      "diy-model": {
+        "threshold": 7.0,
+        "topic_dedup": true
+      },
+      "diy-infrastructure": {
+        "threshold": 7.0,
+        "topic_dedup": true
+      },
+      "diy-other": {
         "threshold": 7.0,
         "topic_dedup": true
       }
@@ -39,35 +47,35 @@
         "type": "user_events",
         "username": "karpathy",
         "enabled": true,
-        "profile": "tech-news"
+        "profile": "auto"
       },
       {
         "type": "repo_releases",
         "owner": "vllm-project",
         "repo": "vllm",
         "enabled": true,
-        "profile": "tech-news"
+        "profile": "auto"
       },
       {
         "type": "repo_releases",
         "owner": "sgl-project",
         "repo": "sglang",
         "enabled": true,
-        "profile": "tech-news"
+        "profile": "auto"
       },
       {
         "type": "repo_releases",
         "owner": "triton-lang",
         "repo": "triton",
         "enabled": true,
-        "profile": "tech-news"
+        "profile": "auto"
       }
     ],
     "hackernews": {
       "enabled": true,
       "fetch_top_stories": 30,
       "min_score": 150,
-      "profile": "tech-news"
+      "profile": "auto"
     },
     "rss": [
       {
@@ -75,14 +83,14 @@
         "url": "https://simonwillison.net/atom/everything/",
         "enabled": true,
         "category": "ai-tools",
-        "profile": "tech-news"
+        "profile": "auto"
       },
       {
         "name": "vLLM Blog",
         "url": "https://vllm.ai/blog/rss.xml",
         "enabled": true,
         "category": "llm-inference",
-        "profile": "tech-blog",
+        "profile": "auto",
         "content_extractor": "trafilatura"
       },
       {
@@ -90,7 +98,7 @@
         "url": "https://www.seangoedecke.com/rss.xml",
         "enabled": true,
         "category": "software-engineering",
-        "profile": "tech-blog",
+        "profile": "auto",
         "content_extractor": "trafilatura"
       },
       {
@@ -98,7 +106,7 @@
         "url": "https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664",
         "enabled": true,
         "category": "finance",
-        "profile": "finance-news",
+        "profile": "auto",
         "content_extractor": "trafilatura"
       },
       {
@@ -106,21 +114,21 @@
         "url": "https://mshibanami.github.io/GitHubTrendingRSS/daily/all.xml",
         "enabled": true,
         "category": "github-trending",
-        "profile": "tech-news"
+        "profile": "auto"
       },
       {
         "name": "Semianalysis",
         "url": "https://newsletter.semianalysis.com/feed",
         "enabled": true,
         "category": "semiconductors",
-        "profile": "tech-news"
+        "profile": "auto"
       },
       {
         "name": "LWN.net",
         "url": "https://lwn.net/headlines/full_text?key=${LWN_KEY}",
         "enabled": true,
         "category": "linux-kernel",
-        "profile": "tech-news"
+        "profile": "auto"
       }
     ],
     "reddit": {
@@ -133,7 +141,7 @@
           "time_filter": "day",
           "fetch_limit": 10,
           "min_score": 60,
-          "profile": "tech-news"
+          "profile": "auto"
         },
         {
           "subreddit": "LocalLLaMA",
@@ -142,7 +150,7 @@
           "time_filter": "day",
           "fetch_limit": 10,
           "min_score": 60,
-          "profile": "tech-news"
+          "profile": "auto"
         }
       ],
       "users": [],
@@ -155,10 +163,7 @@
           "channel": "zaihuapd",
           "enabled": true,
           "fetch_limit": 20,
-          "profile": [
-            "tech-news",
-            "finance-news"
-          ]
+          "profile": "auto"
         }
       ]
     }
@@ -169,9 +174,11 @@
   "digest": {
     "max_items": null,
     "profile_order": [
-      "tech-news",
-      "tech-blog",
-      "finance-news"
+      "diy-capital-market",
+      "diy-application",
+      "diy-model",
+      "diy-infrastructure",
+      "diy-other"
     ],
     "category_groups": {},
     "default_group": "other",
