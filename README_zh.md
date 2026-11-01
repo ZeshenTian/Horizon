@@ -293,7 +293,7 @@ docker compose run --rm horizon [OPTIONS]
 
 ### 4. 自动化（可选）
 
-本项目的[早间甜点工作流](.github/workflows/daily-summary.yml)每天在 **UTC 00:00 / 北京时间 08:00** 启动。统计范围固定为前一天北京时间 08:00 至当天 08:00（不含截止时刻），使用 MiniMax 生成中文日报，发送到配置的 Gmail，主题为当天北京时间的 `x月x日早间甜点`。工作流也支持在 Actions 页面手动运行；GitHub 调度可能延迟，实际邮件到达时间包含采集和生成耗时。
+本项目的[早间甜点工作流](.github/workflows/daily-summary.yml)以每天 **UTC 00:00 / 北京时间 08:00** 为主触发时间，并在北京时间 **08:07、08:27、08:47、09:17** 增加受防重检查保护的补偿触发；不是每天发送五封邮件。统计范围固定为前一天北京时间 08:00 至当天 08:00（不含截止时刻），使用 MiniMax 生成中文日报，发送到配置的 Gmail，主题为当天北京时间的 `x月x日早间甜点`。工作流也支持在 Actions 页面手动运行；GitHub 调度可能延迟，实际邮件到达时间包含采集和生成耗时。
 
 将代码推送到你自己的仓库默认分支后，在仓库 **Settings → Secrets and variables → Actions** 配置：
 
@@ -307,7 +307,7 @@ Gmail 应用专用密码需要账号支持且已开启两步验证，见 [Google
 
 本地命令自动按“进程环境 → `~/.config/ai-keys/keys.env` → 项目 `.env`”读取设置，真实进程密钥优先；项目内的 `xxx` 不会覆盖全局密钥。可用 `HORIZON_GLOBAL_ENV_FILE` 指定其他共享文件。云端通过 GitHub Secrets 注入密钥，不读取本机文件，也不应将密钥文件提交到仓库。
 
-`uv run horizon --check-morning-config` 只检查配置，不采集或发送；`uv run horizon --morning` 执行早报。邮件失败会让工作流失败，成功后缓存发送回执以避免常规重复运行再次发送；缓存被清理或邮件发送结果不明确时，手动重跑前应检查 Gmail 已发送邮件。首次云端发送验证成功后，应停用旧的本地早报任务以避免双重推送。
+`uv run horizon --check-morning-config` 只检查配置，不采集或发送；`uv run horizon --morning` 执行早报。邮件失败会让工作流失败，成功后缓存发送回执；缓存缺失时还会检查同日报的历史运行及所有重试。只要此前已进入“生成并发送”步骤，就不自动重发（即使后来失败）；查询状态失败也停止发送。详见[调度、防重和人工恢复说明](docs/morning-schedule.md)。首次云端发送验证成功后，应停用旧的本地早报任务以避免双重推送。
 
 ### 5. 个人 DIY 分类
 
@@ -403,3 +403,4 @@ Horizon 已经支持完整的日报流程：多源抓取、Profile 驱动的分�
 ## 许可证
 
 [MIT](LICENSE)
+
