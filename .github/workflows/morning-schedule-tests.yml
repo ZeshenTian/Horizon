@@ -1,0 +1,33 @@
+name: Morning schedule safety tests
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/daily-summary.yml'
+      - '.github/workflows/morning-schedule-tests.yml'
+      - 'src/morning*.py'
+      - 'src/_file_utils.py'
+      - 'tests/test_morning*.py'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/daily-summary.yml'
+      - '.github/workflows/morning-schedule-tests.yml'
+      - 'src/morning*.py'
+      - 'src/_file_utils.py'
+      - 'tests/test_morning*.py'
+
+permissions:
+  contents: read
+
+jobs:
+  offline-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test time boundaries and duplicate-delivery guard (no credentials or email)
+        run: python -m unittest tests.test_morning tests.test_morning_schedule -v

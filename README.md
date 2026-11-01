@@ -304,7 +304,7 @@ docker compose run --rm horizon [OPTIONS]
 
 ### 4. Automate (Optional)
 
-The [morning workflow](.github/workflows/daily-summary.yml) runs at 00:00 UTC (08:00 Asia/Shanghai), generates a Chinese MiniMax digest for the preceding Beijing morning-to-morning 24 hours, and sends it through Gmail SMTP. Configure repository Secrets `MINIMAX_API_KEY`, `GMAIL_APP_PASSWORD` and variable `GMAIL_ADDRESS` before enabling it in your own repository. See [the setup instructions](README_zh.md#4-自动化可选).
+The [morning workflow](.github/workflows/daily-summary.yml) targets 00:00 UTC (08:00 Asia/Shanghai), with guarded backup triggers at 08:07, 08:27, 08:47 and 09:17 Beijing time. It generates a Chinese MiniMax digest for the preceding Beijing morning-to-morning 24 hours, and sends it through Gmail SMTP. Configure repository Secrets `MINIMAX_API_KEY`, `GMAIL_APP_PASSWORD` and variable `GMAIL_ADDRESS` before enabling it in your own repository. GitHub schedules are best-effort, not an exact arrival-time guarantee. See [the setup instructions](README_zh.md#4-自动化可选) and [timing, deduplication and recovery](docs/morning-schedule.md).
 
 ## Supported Sources
 
@@ -395,3 +395,4 @@ Want to share valuable source discoveries with the Horizon community? Please sub
 ## License
 
 [MIT](LICENSE)
+

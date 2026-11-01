@@ -4,10 +4,15 @@ on:
   schedule:
     # 00:00 UTC = 08:00 Asia/Shanghai on the same calendar date.
     - cron: '0 0 * * *'
+    # Off-the-hour backup triggers can overtake a delayed/dropped primary event.
+    # The 08:00 Beijing cutoff is unchanged; these are not extra daily emails.
+    - cron: '7,27,47 0 * * *'
+    - cron: '17 1 * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
 
 # Prevent scheduled and manually triggered runs from sending concurrently.
 concurrency:
@@ -16,6 +21,8 @@ concurrency:
 
 jobs:
   morning:
+    # Manual runs on feature branches must not send or create branch-local receipts.
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -29,20 +36,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - uses: astral-sh/setup-uv@v6
-        with:
-          version: '0.11.26'
-      - name: Install dependencies
-        run: uv sync --frozen
-
-      - name: Resolve Beijing issue date
+      - name: Resolve Beijing issue date and report trigger delay
         id: window
-        run: |
-          uv run python -c 'from src.morning import morning_window; print("issue_date=" + morning_window().metadata()["issue_date"])' >> "$GITHUB_OUTPUT"
-          uv run python -m src.morning --window-only
+        run: python3 -m src.morning_schedule resolve
 
       - name: Restore successful delivery receipt
         id: receipt
@@ -51,8 +47,25 @@ jobs:
           path: data/morning/${{ steps.window.outputs.issue_date }}.sent.json
           key: horizon-morning-sent-v1-${{ steps.window.outputs.issue_date }}
 
-      - name: Prepare private runtime configuration
+      - name: Check previous delivery attempts
+        id: guard
         if: steps.receipt.outputs.cache-hit != 'true'
+        run: python3 -m src.morning_schedule check
+
+      - uses: actions/setup-python@v5
+        if: steps.guard.outputs.send == 'true'
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v6
+        if: steps.guard.outputs.send == 'true'
+        with:
+          version: '0.11.26'
+      - name: Install dependencies
+        if: steps.guard.outputs.send == 'true'
+        run: uv sync --frozen
+
+      - name: Prepare private runtime configuration
+        if: steps.guard.outputs.send == 'true'
         run: |
           cp data/config.github.json data/config.json
           uv run python - <<'PY'
@@ -68,7 +81,7 @@ jobs:
 
       - name: Generate and send morning email
         id: delivery
-        if: steps.receipt.outputs.cache-hit != 'true'
+        if: steps.guard.outputs.send == 'true'
         env:
           ISSUE_DATE: ${{ steps.window.outputs.issue_date }}
         run: uv run horizon --morning --morning-date "$ISSUE_DATE"
@@ -87,3 +100,4 @@ jobs:
           name: morning-${{ steps.window.outputs.issue_date }}
           path: data/summaries/*-zh.md
           retention-days: 14
+
