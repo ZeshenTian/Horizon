@@ -1,0 +1,11 @@
+{
+  "source": "https://github.com/ZeshenTian/Horizon/actions/runs/41385199633/job/125084387410",
+  "captured_at": "2026-11-02T03:50:19.7282911Z",
+  "step": {
+    "name": "Safe no-send canary",
+    "status": "pending",
+    "conclusion": null,
+    "started_at": null,
+    "completed_at": null
+  }
+}

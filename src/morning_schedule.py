@@ -23,6 +23,10 @@ WORKFLOW_PATH = ".github/workflows/daily-summary.yml"
 DELIVERY_STEP = "Generate and send morning email"
 
 
+class UnsafeHistoryError(ValueError):
+    """A fixed, credential-free diagnostic for unsafe or incomplete state."""
+
+
 def github_get(path: str) -> dict:
     """Read trusted GitHub API paths; never log credentials or response bodies."""
     request = Request(
@@ -44,22 +48,22 @@ def pages(get, path: str, key: str, **query) -> list[dict]:
         payload = get(path + "?" + urlencode({**query, "per_page": 100, "page": page}))
         values = payload[key]
         if not isinstance(values, list):
-            raise ValueError("Invalid GitHub history response")
+            raise UnsafeHistoryError("Invalid GitHub history response")
         total = payload["total_count"]
         if type(total) is not int or total < 0:
-            raise ValueError("Invalid GitHub history count")
+            raise UnsafeHistoryError("Invalid GitHub history count")
         result.extend(values)
         if len(values) < 100:
             if total != len(result):
-                raise ValueError("Incomplete GitHub history response")
+                raise UnsafeHistoryError("Incomplete GitHub history response")
             return result
-    raise ValueError("GitHub history exceeded the safe pagination limit")
+    raise UnsafeHistoryError("GitHub history exceeded the safe pagination limit")
 
 
 def parse_timestamp(value: str) -> datetime:
     result = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if result.utcoffset() is None:
-        raise ValueError("GitHub timestamp has no timezone")
+        raise UnsafeHistoryError("GitHub timestamp has no timezone")
     return result
 
 
@@ -73,10 +77,13 @@ def delivery_attempted(job: dict) -> bool:
     for step in job["steps"]:
         if step["name"] != DELIVERY_STEP or step.get("conclusion") == "skipped":
             continue
-        if step.get("started_at") or step["status"] in {"in_progress", "completed"}:
+        if step.get("started_at") or step.get("completed_at") or step["status"] in {"in_progress", "completed"}:
             return True
-        if step["status"] != "queued":
-            raise ValueError("Unknown delivery step state")
+        # Live GitHub jobs report future steps as "pending", not only
+        # "queued". Neither is a delivery attempt without timing/outcome
+        # evidence. Do not generalize this to unknown or contradictory states.
+        if step["status"] not in {"queued", "pending"} or step.get("conclusion") is not None:
+            raise UnsafeHistoryError("Unknown or inconsistent delivery step state")
     return False
 
 
@@ -108,7 +115,7 @@ def delivery_blocker(get, repository: str, current: dict) -> str | None:
             or (run["id"] != current["id"] and run["status"] == "completed"
                 and run.get("conclusion") != "cancelled")
         ):
-            raise ValueError("Prior job history is missing; delivery is unknown")
+            raise UnsafeHistoryError("Prior job history is missing; delivery is unknown")
         if any(delivery_attempted(job) for job in jobs):
             return (
                 f"Run {run['id']} already entered generation/delivery. "
@@ -131,7 +138,7 @@ def main() -> None:
         repository = os.environ["GITHUB_REPOSITORY"]
         current = github_get(f"/repos/{repository}/actions/runs/{int(os.environ['GITHUB_RUN_ID'])}")
         if current["path"].split("@", 1)[0] != WORKFLOW_PATH:
-            raise ValueError("Unexpected workflow")
+            raise UnsafeHistoryError("Unexpected workflow")
         window = issue_for_run(current)
         if args.command == "resolve":
             write_output("issue_date", window.metadata()["issue_date"])
@@ -152,6 +159,12 @@ def main() -> None:
                 write_output("send", "false")
             else:
                 write_output("send", "true")
+    except UnsafeHistoryError as error:
+        # These messages are fixed literals from this module, never API data.
+        raise SystemExit(
+            f"Cannot establish safe morning delivery state ({error}); "
+            "stopping without sending."
+        ) from None
     except Exception as error:
         # Do not interpret a timeout, permission error or incomplete history as
         # permission to resend. Log only its class, not a potentially secret URL.

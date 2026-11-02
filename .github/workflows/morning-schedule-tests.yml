@@ -8,6 +8,7 @@ on:
       - 'src/morning*.py'
       - 'src/_file_utils.py'
       - 'tests/test_morning*.py'
+      - 'tests/fixtures/github_pending_step.json'
   push:
     branches: [main]
     paths:
@@ -16,6 +17,7 @@ on:
       - 'src/morning*.py'
       - 'src/_file_utils.py'
       - 'tests/test_morning*.py'
+      - 'tests/fixtures/github_pending_step.json'
 
 permissions:
   contents: read
@@ -55,7 +57,7 @@ jobs:
           prefix = f"/repos/{repository}/actions/runs"
           current = github_get(f"{prefix}/{run_id}")
           payload = github_get(f"{prefix}/{run_id}/jobs?filter=all&per_page=100")
-          jobs = [job for job in payload["jobs"] if job["name"] == "live-api-canary"]
+          jobs = [job for job in payload["jobs"] if job["name"] == "live-api-canary" and job["run_attempt"] == current["run_attempt"]]
           steps = [step for job in jobs for step in job["steps"] if step["name"] == "Safe no-send canary"]
           if not steps:
               raise RuntimeError("Live canary step metadata is not visible yet")
