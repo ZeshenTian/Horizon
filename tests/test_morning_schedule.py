@@ -3,6 +3,7 @@
 from contextlib import redirect_stdout
 from datetime import datetime, timezone
 from io import StringIO
+import json
 import os
 from pathlib import Path
 import tempfile
@@ -85,6 +86,24 @@ class ScheduleTests(unittest.TestCase):
         history = History([run()], {10: [job("queued", None)]})
         self.assertIsNone(schedule.delivery_blocker(history, "owner/repo", run(status="in_progress")))
 
+    def test_real_github_pending_step_fixture_does_not_block_first_attempt(self):
+        fixture = Path(__file__).parent / "fixtures/github_pending_step.json"
+        step = json.loads(fixture.read_text())["step"]
+        step["name"] = schedule.DELIVERY_STEP
+        history = History([run()], {10: [{"steps": [step]}]})
+        self.assertFalse(schedule.delivery_attempted({"steps": [step]}))
+        self.assertIsNone(schedule.delivery_blocker(history, "owner/repo", run(status="in_progress")))
+
+    def test_pending_with_start_or_completion_evidence_still_blocks(self):
+        for field in ("started_at", "completed_at"):
+            with self.subTest(field=field):
+                self.assertTrue(schedule.delivery_attempted(job("pending", None, **{field: "2026-11-01T00:07:00Z"})))
+
+    def test_pending_or_queued_with_unexpected_outcome_fails_closed(self):
+        for status in ("pending", "queued"):
+            with self.subTest(status=status), self.assertRaises(schedule.UnsafeHistoryError):
+                schedule.delivery_attempted(job(status, "failure"))
+
     def test_other_active_run_blocks_even_before_delivery(self):
         history = History([run(1, status="in_progress")])
         self.assertIn("still active", schedule.delivery_blocker(history, "owner/repo", run()))
@@ -160,6 +179,19 @@ class ScheduleTests(unittest.TestCase):
                 with self.assertRaises(SystemExit) as error:
                     schedule.main()
             self.assertNotIn("sensitive detail", str(error.exception))
+            self.assertFalse(output.exists())
+
+    def test_cli_reports_fixed_safety_reason_without_enabling_send(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "output"
+            env = {"GITHUB_REPOSITORY": "owner/repo", "GITHUB_RUN_ID": "10", "GITHUB_OUTPUT": str(output)}
+            history = History([run()], {10: [job("unknown", None)]})
+            def get(url):
+                return run() if url.endswith("/runs/10") else history(url)
+            with patch.dict(os.environ, env), patch("sys.argv", ["schedule", "check"]), patch.object(schedule, "github_get", side_effect=get):
+                with self.assertRaises(SystemExit) as error:
+                    schedule.main()
+            self.assertIn("Unknown or inconsistent delivery step state", str(error.exception))
             self.assertFalse(output.exists())
 
     def test_workflow_wires_guards_before_dependencies_and_keeps_cutoff(self):

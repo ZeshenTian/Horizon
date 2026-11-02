@@ -14,6 +14,27 @@ Its [schedule documentation](https://docs.github.com/en/actions/reference/workfl
 warns that high load can delay or drop scheduled jobs, especially at the start
 of an hour. Moving a cron alone cannot guarantee delivery at a precise time.
 
+### First live verification on 2026-11-02
+
+[Run 41384335012](https://github.com/ZeshenTian/Horizon/actions/runs/41384335012)
+was not created until 03:40:02 UTC / 11:40:02 Beijing. At 03:40:10 UTC the new
+history guard raised `ValueError`, before dependency installation, generation
+or email. This was a regression in the guard, separate from GitHub's continued
+scheduler delay; the first patch did **not** establish punctual delivery.
+
+A [no-send live API canary](https://github.com/ZeshenTian/Horizon/actions/runs/41385199633)
+reproduced the failure: GitHub returns a future step as `status: pending` with
+null `started_at`, `completed_at` and `conclusion`. The original unit fixtures
+used only `queued`, so they missed that real response. The corrected guard
+accepts both explicitly unstarted states, but still blocks timing evidence or
+fails closed on unknown/inconsistent state. Its fixed safety reasons are now
+visible without exposing API payloads or credentials.
+
+The fixture in `tests/fixtures/github_pending_step.json` retains the observed
+fields and source. CI now also checks real, in-progress GitHub API metadata
+against a harmless future `echo` step. That canary has no model/mail secrets and
+cannot send a digest. It supplements rather than replaces offline safety tests.
+
 ## Mitigation
 
 - Keep the original 00:00 UTC / **08:00 Beijing** primary trigger and the fixed
