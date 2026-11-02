@@ -1,0 +1,49 @@
+name: Synthetic schedule timing probe
+
+on:
+  schedule:
+    # One-off samples: Beijing 2026-11-02 14:55, 15:00, 15:05.
+    # Script expiry prevents sending on a future year's matching cron date.
+    - cron: '55 6 2 11 *'
+    - cron: '0 7 2 11 *'
+    - cron: '5 7 2 11 *'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: horizon-probe-${{ github.event.schedule }}
+  cancel-in-progress: false
+
+jobs:
+  sample:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Restore sample receipt
+        id: receipt
+        uses: actions/cache/restore@v4
+        with:
+          path: timing-report.json
+          key: timing-probe-20261102-${{ github.event.schedule }}
+      - name: Send synthetic timing sample
+        if: steps.receipt.outputs.cache-hit != 'true'
+        env:
+          PROBE_CRON: ${{ github.event.schedule }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GMAIL_ADDRESS: ${{ vars.GMAIL_ADDRESS || secrets.GMAIL_ADDRESS }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: python3 scripts/schedule_probe.py
+      - name: Save sample receipt
+        if: success() && steps.receipt.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: timing-report.json
+          key: timing-probe-20261102-${{ github.event.schedule }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: timing-${{ github.run_id }}
+          path: timing-report.json
