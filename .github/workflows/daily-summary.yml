@@ -1,13 +1,7 @@
 name: Morning Sweet Treat
 
 on:
-  schedule:
-    # 00:00 UTC = 08:00 Asia/Shanghai on the same calendar date.
-    - cron: '0 0 * * *'
-    # Off-the-hour backup triggers can overtake a delayed/dropped primary event.
-    # The 08:00 Beijing cutoff is unchanged; these are not extra daily emails.
-    - cron: '7,27,47 0 * * *'
-    - cron: '17 1 * * *'
+  # Automatic cloud delivery retired: Codex is the only daily sender.
   workflow_dispatch:
 
 permissions:
@@ -21,8 +15,8 @@ concurrency:
 
 jobs:
   morning:
-    # Manual runs on feature branches must not send or create branch-local receipts.
-    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    # Cloud sending is disabled, including manual dispatch.
+    if: ${{ false }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
